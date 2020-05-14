@@ -8,6 +8,7 @@ const Wrapper = styled.div<WrapperProps>`
     position: absolute;
     right: 0;
     bottom: 0;
+    z-index: 100;
 
     overflow: hidden;
     background: radial-gradient(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.8));
@@ -37,7 +38,7 @@ const SelfieVideo = styled.video`
 `;
 
 type SelfieViewProps = {
-    stream?: null | MediaStream;
+    stream: MediaStream | null;
     mini?: boolean;
 };
 const SelfieView: FC<SelfieViewProps> = ({ stream = null, mini = false }) => {

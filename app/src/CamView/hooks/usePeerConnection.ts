@@ -18,8 +18,21 @@ const usePeerConnection = () => {
 
     // Add stream to PC
     useEffect(() => {
-        if (!localStream) return;
-        localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
+        if (localStream && pc.getSenders().length === 0) {
+            localStream.getTracks().forEach((track) => {
+                pc.addTrack(track, localStream);
+            });
+        }
+
+        if (!localStream && pc.getSenders().length > 0) {
+            pc.getSenders().forEach((sender) => pc.removeTrack(sender));
+        }
+
+        if (localStream && pc.getSenders().length > 0) {
+            pc.getSenders().forEach((sender) => {
+                localStream.getTracks().forEach((track) => sender.replaceTrack(track));
+            });
+        }
     }, [localStream, pc]);
 
     const handleOfferReceived = useCallback(

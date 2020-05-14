@@ -1,8 +1,10 @@
-import React, { FC, useState, useRef, useEffect } from "react";
+import React, { FC, useState, useRef, useEffect, useMemo } from "react";
 import styled from "styled-components";
 
 import Button from "../../shared/components/Button";
 import ErrorMessage from "../../shared/components/ErrorMessage";
+import FilledGrid from "../../shared/components/FilledGrid";
+
 import useUserVideo from "../hooks/useUserVideo";
 import usePeerConnection from "../hooks/usePeerConnection";
 
@@ -22,51 +24,58 @@ const ButtonWrapper = styled.div`
     justify-content: space-around;
 `;
 
-const VideosWrapper = styled.div`
-    position: absolute;
-    width: 100vw;
-    height: 100vh;
-    display: flex;
-    align-items: stretch;
-    justify-content: stretch;
-`;
-
 const Video = styled.video`
-    flex: 1;
     object-fit: cover;
 `;
 
-type Props = {};
-const CamView: FC<Props> = () => {
+type RemoteVideoProps = { stream: MediaStream | null };
+const RemoteVideo: FC<RemoteVideoProps> = ({ stream }) => {
+    const [active, setActive] = useState(false);
     const videoRef = useRef<HTMLVideoElement | null>(null);
-    const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
-
-    const { error, videoToggleProps, isVideoEnabled, stream } = useUserVideo({ autoStart: true });
-    const [mini, setMini] = useState(false);
-
-    const { call, setLocalStream, remoteStream } = usePeerConnection();
-    useEffect(() => {
-        setLocalStream(stream);
-    }, [stream, setLocalStream]);
 
     useEffect(() => {
+        setActive(!!stream && stream.getVideoTracks().length > 0);
+
         if (!videoRef.current) return;
         videoRef.current.srcObject = stream;
     }, [stream]);
 
-    useEffect(() => {
-        if (!remoteStream || !remoteVideoRef.current) return;
-        setMini(true);
-        remoteVideoRef.current.srcObject = remoteStream;
+    return <Video ref={videoRef} autoPlay />;
+};
+
+type Props = {};
+const CamView: FC<Props> = () => {
+    const { error, videoToggleProps, isVideoEnabled, stream: localStream } = useUserVideo({ autoStart: true });
+
+    const { call, setLocalStream, remoteStream } = usePeerConnection();
+
+    // TODO handle multiple streams in usePeerConnections hook
+    const remoteStreams = useMemo(() => {
+        if (!remoteStream) return [];
+        return [remoteStream];
     }, [remoteStream]);
+
+    useEffect(() => {
+        setLocalStream(localStream);
+    }, [localStream, setLocalStream]);
+
+    const { gridColumns, gridRows } = useMemo(
+        () => ({
+            gridColumns: Math.round(Math.sqrt(remoteStreams.length)),
+            gridRows: Math.ceil(Math.sqrt(remoteStreams.length)),
+        }),
+        [remoteStreams.length]
+    );
 
     return (
         <>
             {error && <ErrorMessage>{error}</ErrorMessage>}
-            <SelfieView stream={stream} mini={mini} />
-            <VideosWrapper>
-                <Video ref={remoteVideoRef} autoPlay />
-            </VideosWrapper>
+            <SelfieView stream={localStream} mini={!!remoteStreams.length} />
+            <FilledGrid columns={gridColumns} rows={gridRows}>
+                {remoteStreams.map((stream, index) => (
+                    <RemoteVideo key={index} stream={stream} />
+                ))}
+            </FilledGrid>
             <UserList onSelectUser={(id: string) => call(id)} />
             <ButtonWrapper>
                 <Button {...videoToggleProps} style={{ color: isVideoEnabled ? "blue" : "red" }}>
