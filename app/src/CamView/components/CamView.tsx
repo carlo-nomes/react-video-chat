@@ -1,4 +1,4 @@
-import React, { FC, useState, useRef, useEffect, useMemo } from "react";
+import React, { FC, useRef, useEffect, useMemo } from "react";
 import styled from "styled-components";
 
 import Button from "../../shared/components/Button";
@@ -6,10 +6,11 @@ import ErrorMessage from "../../shared/components/ErrorMessage";
 import FilledGrid from "../../shared/components/FilledGrid";
 
 import useUserVideo from "../hooks/useUserVideo";
-import usePeerConnection from "../hooks/usePeerConnection";
+import usePeerConnections from "../hooks/usePeerConnections";
 
 import UserList from "./UserList";
 import SelfieView from "./SelfieView";
+import RemoteVideo from "./RemoteVideo";
 
 const ButtonWrapper = styled.div`
     position: absolute;
@@ -24,56 +25,23 @@ const ButtonWrapper = styled.div`
     justify-content: space-around;
 `;
 
-const Video = styled.video`
-    object-fit: cover;
-`;
-
-type RemoteVideoProps = { stream: MediaStream | null };
-const RemoteVideo: FC<RemoteVideoProps> = ({ stream }) => {
-    const [active, setActive] = useState(false);
-    const videoRef = useRef<HTMLVideoElement | null>(null);
-
-    useEffect(() => {
-        setActive(!!stream && stream.getVideoTracks().length > 0);
-
-        if (!videoRef.current) return;
-        videoRef.current.srcObject = stream;
-    }, [stream]);
-
-    return <Video ref={videoRef} autoPlay />;
-};
-
 type Props = {};
 const CamView: FC<Props> = () => {
     const { error, videoToggleProps, isVideoEnabled, stream: localStream } = useUserVideo({ autoStart: true });
 
-    const { call, setLocalStream, remoteStream } = usePeerConnection();
-
-    // TODO handle multiple streams in usePeerConnections hook
-    const remoteStreams = useMemo(() => {
-        if (!remoteStream) return [];
-        return [remoteStream];
-    }, [remoteStream]);
-
-    useEffect(() => {
-        setLocalStream(localStream);
-    }, [localStream, setLocalStream]);
-
-    const { gridColumns, gridRows } = useMemo(
-        () => ({
-            gridColumns: Math.round(Math.sqrt(remoteStreams.length)),
-            gridRows: Math.ceil(Math.sqrt(remoteStreams.length)),
-        }),
-        [remoteStreams.length]
-    );
+    const { call, remoteStreams, peerConnections } = usePeerConnections({ localStream });
+    const { gridColumns, gridRows } = useMemo(() => {
+        const sqrt = Math.sqrt(Object.keys(peerConnections).length);
+        return { gridColumns: Math.round(sqrt), gridRows: Math.ceil(sqrt) };
+    }, [peerConnections]);
 
     return (
         <>
             {error && <ErrorMessage>{error}</ErrorMessage>}
-            <SelfieView stream={localStream} mini={!!remoteStreams.length} />
+            <SelfieView stream={localStream} mini={!!Object.values(peerConnections).length} />
             <FilledGrid columns={gridColumns} rows={gridRows}>
-                {remoteStreams.map((stream, index) => (
-                    <RemoteVideo key={index} stream={stream} />
+                {Object.keys(peerConnections).map((id) => (
+                    <RemoteVideo key={id} id={id} stream={remoteStreams[id] || null} />
                 ))}
             </FilledGrid>
             <UserList onSelectUser={(id: string) => call(id)} />
